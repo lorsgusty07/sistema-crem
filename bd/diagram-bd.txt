@@ -1,0 +1,130 @@
+
+Table users {
+  id integer [primary key]
+  username varchar
+  password varchar
+  role varchar
+  created_at timestamp
+}
+
+Table colegios{
+  idColegio integer [primary key]
+  codLocal varchar
+  nombre varchar
+  tipGestion varchar
+  nomDirector varchar
+  telefono varchar
+  correo varchar
+  direccion varchar
+  departamento varchar
+  provincia varchar
+  distrito varchar
+  dre_ugel varchar
+  telDirector varchar [null]
+  correoDirector varchar [null]
+}
+
+Table estudiantes{
+  idEstudiante integer [primary key]
+  numIdentificacion varchar
+  nombres varchar
+  apellidos varchar
+  fechaNacimiento date
+}
+
+Table asesores{
+  idAsesor integer [primary key]
+  numIdentificacion varchar
+  nombres varchar
+  apellido varchar
+  telAsesor varchar
+  correoAsesor varchar
+}
+
+Table grados {
+  idGrado integer [primary key]
+  nombre varchar
+}
+
+Table anios{
+  idAnio integer [primary key]
+  idGrado integer
+  nombre varchar
+}
+
+Table sedes{
+  idSede integer [primary key]
+  nombre varchar
+  direccion varchar
+  latitud varchar [null]
+  longitud varchar [null]
+}
+
+Table sedesCobertura {
+  idCobertura integer [primary key]
+  idSede integer
+  departamento varchar
+  provincia varchar [null]
+  distrito varchar [null]
+
+}
+
+Enum modalidad {
+  Libre
+  Delegacion
+}
+Enum estPago{
+  si
+  no
+}
+Table inscripcionCabecera {
+  idInscripcion integer [primary key]
+  idColegio integer
+  idAsesor integer [null]
+  idSede integer
+  modalidad modalidad
+  edicion varchar
+  monto integer
+  estPago estPago
+  clave varchar
+}
+
+Table inscripcionDetalle {
+  idDetalle integer [primary key]
+  idInscripcion integer
+  idEstudiante integer
+  idAnio integer
+}
+Enum estadoFase{
+  Clasificado
+  Eliminado
+  Ausente
+}
+Table puntajeFase {
+  idPuntaje integer [primary key]
+  idDetalle integer
+  numFase integer
+  buenas integer
+  blanco integer
+  malas integer
+  puntaje integer
+  estado estadoFase
+}
+
+// 1. Catálogos y Cobertura
+Ref: grados.idGrado < anios.idGrado
+Ref: sedes.idSede < sedesCobertura.idSede
+
+// 2. Cabecera (El registro general del colegio en el concurso)
+Ref: colegios.idColegio < inscripcionCabecera.idColegio
+Ref: asesores.idAsesor < inscripcionCabecera.idAsesor
+Ref: sedes.idSede < inscripcionCabecera.idSede
+
+// 3. Detalle (Los estudiantes específicos en esa cabecera)
+Ref: inscripcionCabecera.idInscripcion < inscripcionDetalle.idInscripcion
+Ref: estudiantes.idEstudiante < inscripcionDetalle.idEstudiante
+Ref: anios.idAnio < inscripcionDetalle.idAnio
+
+// 4. Resultados (El puntaje del examen)
+// Aquí es 1 a 1 (un detalle solo tiene un puntaje), así que usamos el guion '-'
+Ref: inscripcionDetalle.idDetalle < puntajeFase.idDetalle

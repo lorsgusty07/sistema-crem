@@ -1,0 +1,164 @@
+@import 'tailwindcss';
+@import 'tw-animate-css';
+@import 'shadcn/tailwind.css';
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --color-background: #ffffff;
+  --color-foreground: #1a1a1a;
+  --color-card: #ffffff;
+  --color-card-foreground: #1a1a1a;
+  --color-popover: #ffffff;
+  --color-popover-foreground: #1a1a1a;
+  --color-primary: #d31e17;
+  --color-primary-foreground: #ffffff;
+  --color-secondary: #211169;
+  --color-secondary-foreground: #ffffff;
+  --color-muted: #f5f5f5;
+  --color-muted-foreground: #666666;
+  --color-accent: #D4AF37;
+  --color-accent-foreground: #1a1a1a;
+  --color-destructive: #d31e17;
+  --color-border: #e0e0e0;
+  --color-input: #f5f5f5;
+  --color-ring: #d31e17;
+  --color-chart-1: #d31e17;
+  --color-chart-2: #211169;
+  --color-chart-3: #D4AF37;
+  --color-chart-4: #666666;
+  --color-chart-5: #999999;
+  --color-sidebar: #f9f9f9;
+  --color-sidebar-foreground: #1a1a1a;
+  --color-sidebar-primary: #d31e17;
+  --color-sidebar-primary-foreground: #ffffff;
+  --color-sidebar-accent: #D4AF37;
+  --color-sidebar-accent-foreground: #1a1a1a;
+  --color-sidebar-border: #e0e0e0;
+  --color-sidebar-ring: #d31e17;
+}
+
+:root {
+  color-scheme: light;
+  --background: #ffffff;
+  --foreground: #1a1a1a;
+  --card: #ffffff;
+  --card-foreground: #1a1a1a;
+  --popover: #ffffff;
+  --popover-foreground: #1a1a1a;
+  --primary: #d31e17;
+  --primary-foreground: #ffffff;
+  --secondary: #211169;
+  --secondary-foreground: #ffffff;
+  --muted: #f5f5f5;
+  --muted-foreground: #666666;
+  --accent: #D4AF37;
+  --accent-foreground: #1a1a1a;
+  --destructive: #d31e17;
+  --border: #e0e0e0;
+  --input: #f5f5f5;
+  --ring: #d31e17;
+  --chart-1: #d31e17;
+  --chart-2: #211169;
+  --chart-3: #D4AF37;
+  --chart-4: #666666;
+  --chart-5: #999999;
+  --radius: 0.625rem;
+  --sidebar: #f9f9f9;
+  --sidebar-foreground: #1a1a1a;
+  --sidebar-primary: #d31e17;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #D4AF37;
+  --sidebar-accent-foreground: #1a1a1a;
+  --sidebar-border: #e0e0e0;
+  --sidebar-ring: #d31e17;
+}
+
+html {
+  --primary: #d31e17;
+  --secondary: #211169;
+  --accent: #D4AF37;
+  --background: #ffffff;
+  --foreground: #1a1a1a;
+}
+
+.dark {
+  color-scheme: dark;
+  --background: #0d0d0d;
+  --foreground: #f5f5f5;
+  --card: #1a1a1a;
+  --card-foreground: #f5f5f5;
+  --popover: #1a1a1a;
+  --popover-foreground: #f5f5f5;
+  --primary: #ff4d47;
+  --primary-foreground: #ffffff;
+  --secondary: #3d2ca8;
+  --secondary-foreground: #f5f5f5;
+  --muted: #333333;
+  --muted-foreground: #999999;
+  --accent: #D4AF37;
+  --accent-foreground: #1a1a1a;
+  --destructive: #ff4d47;
+  --border: #333333;
+  --input: #262626;
+  --ring: #ff4d47;
+  --chart-1: #ff4d47;
+  --chart-2: #3d2ca8;
+  --chart-3: #D4AF37;
+  --chart-4: #666666;
+  --chart-5: #999999;
+  --sidebar: #1a1a1a;
+  --sidebar-foreground: #f5f5f5;
+  --sidebar-primary: #ff4d47;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #D4AF37;
+  --sidebar-accent-foreground: #1a1a1a;
+  --sidebar-border: #333333;
+  --sidebar-ring: #ff4d47;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not(.light) {
+    color-scheme: dark;
+    --background: #0d0d0d;
+    --foreground: #f5f5f5;
+    --card: #1a1a1a;
+    --card-foreground: #f5f5f5;
+    --popover: #1a1a1a;
+    --popover-foreground: #f5f5f5;
+    --primary: #ff4d47;
+    --primary-foreground: #ffffff;
+    --secondary: #3d2ca8;
+    --secondary-foreground: #f5f5f5;
+    --muted: #333333;
+    --muted-foreground: #999999;
+    --accent: #D4AF37;
+    --accent-foreground: #1a1a1a;
+    --destructive: #ff4d47;
+    --border: #333333;
+    --input: #262626;
+    --ring: #ff4d47;
+    --chart-1: #ff4d47;
+    --chart-2: #3d2ca8;
+    --chart-3: #D4AF37;
+    --chart-4: #666666;
+    --chart-5: #999999;
+    --sidebar: #1a1a1a;
+    --sidebar-foreground: #f5f5f5;
+    --sidebar-primary: #ff4d47;
+    --sidebar-primary-foreground: #ffffff;
+    --sidebar-accent: #D4AF37;
+    --sidebar-accent-foreground: #1a1a1a;
+    --sidebar-border: #333333;
+    --sidebar-ring: #ff4d47;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}
