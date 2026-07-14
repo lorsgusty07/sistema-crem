@@ -67,12 +67,14 @@ export default function Step1Delegation({
     return Array.from(new Set(mapped)).join(', ')
   }
 
-  const handleSelectColegio = (colegio: any) => {
-    setFormData({
+  const handleSelectColegio = async (colegio: any) => {
+    const formattedNivel = formatNivel(colegio.nivel || '');
+    
+    const newFormData = {
       ...formData,
       codigo: colegio.codLocal || '',
       nombre: colegio.nombre || '',
-      nivel: formatNivel(colegio.nivel || ''),
+      nivel: formattedNivel,
       telefono: colegio.telefono || '',
       correo: colegio.correo || '',
       director: colegio.nomDirector || '',
@@ -81,9 +83,32 @@ export default function Step1Delegation({
       departamento: colegio.departamento || '',
       provincia: colegio.provincia || '',
       distrito: colegio.distrito || '',
-      gestion: colegio.tipGestion === 'Privada' ? 'Privada' : 'Pública'
-    })
-    setSuggestions([])
+      gestion: colegio.tipGestion === 'Privada' ? 'Privada' : 'Pública' as 'Pública' | 'Privada'
+    };
+
+    setFormData(newFormData);
+    setSuggestions([]);
+
+    // Verificar si ya existe en la edición actual
+    try {
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api';
+      const currentYear = new Date().getFullYear().toString();
+      const res = await fetch(`${apiUrl}/inscripciones/check?idColegio=${colegio.codLocal}&edicion=${currentYear}`);
+      
+      if (res.ok) {
+        const checkData = await res.json();
+        if (checkData.exists) {
+          onSubmit({
+            ...newFormData,
+            idInscripcion: checkData.idInscripcion,
+            clave: checkData.clave,
+            alreadyRegistered: true
+          });
+        }
+      }
+    } catch (error) {
+      console.error('Error verificando inscripción:', error);
+    }
   }
 
   const hasChanges = () => {
@@ -294,13 +319,16 @@ export default function Step1Delegation({
             <h3 className="text-lg font-bold text-foreground">
               Información del Director
             </h3>
-            <div className="px-4 py-3 bg-blue-50 border-l-4 border-blue-500 rounded-r-lg text-sm text-blue-800 flex items-center gap-3 shadow-sm w-fit">
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            <div className="px-5 py-4 bg-red-50 border-l-4 border-red-500 rounded-r-lg text-sm text-red-800 flex items-start gap-3 shadow-md w-fit">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 flex-shrink-0 text-red-600 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
               </svg>
-              <p>
-                <strong>Nota:</strong> Estos datos son de registros del <strong>2025</strong>. Actualícelos si es necesario.
-              </p>
+              <div>
+                <p className="font-bold text-red-900 uppercase mb-1 text-base">⚠️ MUY IMPORTANTE</p>
+                <p>
+                  Por favor <strong>verifique y actualice obligatoriamente</strong> los datos del Director. Toda la comunicación, contraseñas de acceso y notificaciones oficiales se enviarán <strong>únicamente</strong> a estos números y correos.
+                </p>
+              </div>
             </div>
           </div>
           <div className="grid md:grid-cols-2 gap-6">

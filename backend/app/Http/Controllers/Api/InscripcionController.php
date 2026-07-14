@@ -89,4 +89,32 @@ class InscripcionController extends Controller
             'clave' => $clave
         ], 201);
     }
+
+    public function check(Request $request)
+    {
+        $request->validate([
+            'idColegio' => 'required',
+            'edicion' => 'required|string'
+        ]);
+
+        $colegio = Colegio::where('codLocal', $request->idColegio)->first();
+
+        if (!$colegio) {
+            return response()->json(['exists' => false]);
+        }
+
+        $inscripcion = InscripcionCabecera::where('colegio_id', $colegio->id)
+            ->where('edicion', $request->edicion)
+            ->first();
+
+        if ($inscripcion) {
+            return response()->json([
+                'exists' => true,
+                'idInscripcion' => $inscripcion->id,
+                'clave' => $inscripcion->clave
+            ]);
+        }
+
+        return response()->json(['exists' => false]);
+    }
 }

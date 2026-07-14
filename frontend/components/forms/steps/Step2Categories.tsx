@@ -1,8 +1,8 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
-import { Plus, Trash2, AlertCircle, CheckCircle2 } from 'lucide-react'
+import { Plus, Trash2, AlertCircle, CheckCircle2, Info } from 'lucide-react'
 
 interface StudentData {
   id: string
@@ -34,11 +34,13 @@ interface AllCategoriesData {
 
 interface Step2CategoriesProps {
   data?: Array<any>
+  institutionLevel?: string
+  alreadyRegistered?: boolean
   onSubmit: (data: any) => void
   onCancel: () => void
 }
 
-const CATEGORIES = [
+const ALL_CATEGORIES = [
   { id: 'inicial', name: 'Inicial', years: ['3 años', '4 años', '5 años'], color: 'bg-blue-500' },
   { id: 'primaria', name: 'Primaria', years: ['1°', '2°', '3°', '4°', '5°', '6°'], color: 'bg-green-500' },
   { id: 'secundaria', name: 'Secundaria', years: ['1°', '2°', '3°', '4°', '5°'], color: 'bg-purple-500' },
@@ -55,12 +57,28 @@ const DEFAULT_ADVISOR = {
 
 export default function Step2Categories({
   data,
+  institutionLevel,
+  alreadyRegistered,
   onSubmit,
   onCancel,
 }: Step2CategoriesProps) {
   const [allCategories, setAllCategories] = useState<AllCategoriesData>({})
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null)
   const [selectedYear, setSelectedYear] = useState<string | null>(null)
+  const [showRegisteredAlert, setShowRegisteredAlert] = useState(alreadyRegistered || false)
+
+  useEffect(() => {
+    if (showRegisteredAlert) {
+      const timer = setTimeout(() => {
+        setShowRegisteredAlert(false)
+      }, 5000) // Desaparece en 5 segundos
+      return () => clearTimeout(timer)
+    }
+  }, [showRegisteredAlert])
+
+  const availableCategories = ALL_CATEGORIES.filter(cat => 
+    !institutionLevel || institutionLevel.toLowerCase().includes(cat.name.toLowerCase())
+  )
   
   // Advisor form fields
   const [advisorForm, setAdvisorForm] = useState<AdvisorData>(DEFAULT_ADVISOR)
@@ -74,7 +92,7 @@ export default function Step2Categories({
   })
 
   const getCurrentCategory = () => {
-    return CATEGORIES.find(c => c.id === selectedCategory)
+    return availableCategories.find(c => c.id === selectedCategory)
   }
 
   const handleCategorySelect = (categoryId: string) => {
@@ -206,7 +224,7 @@ export default function Step2Categories({
     
     for (const [categoryId, years] of Object.entries(allCategories)) {
       for (const [year, data] of Object.entries(years)) {
-        const categoryObj = CATEGORIES.find(c => c.id === categoryId)
+        const categoryObj = ALL_CATEGORIES.find(c => c.id === categoryId)
         const categoryName = categoryObj ? categoryObj.name : categoryId
 
         if (!data.advisor.nombres?.trim() || !data.advisor.apellidos?.trim() || !data.advisor.documento?.trim()) {
@@ -240,6 +258,16 @@ export default function Step2Categories({
 
   return (
     <div className="space-y-6">
+      {showRegisteredAlert && (
+        <div className="bg-blue-50 border-l-4 border-blue-500 text-blue-800 p-4 rounded-r-lg shadow-sm flex items-start gap-3 transition-opacity duration-500">
+          <Info className="w-6 h-6 text-blue-600 flex-shrink-0 mt-0.5" />
+          <div>
+            <p className="font-bold uppercase text-blue-900 mb-1 text-sm">Colegio ya registrado</p>
+            <p className="text-sm">Esta institución ya fue registrada para la edición actual. Continuando directamente con la selección de categorías.</p>
+          </div>
+        </div>
+      )}
+
       <div>
         <h2 className="text-2xl font-bold text-foreground mb-2">Selecciona una categoría</h2>
         <p className="text-muted-foreground">
@@ -248,57 +276,63 @@ export default function Step2Categories({
       </div>
 
       {/* Progress Indicators */}
-      <div className="grid md:grid-cols-3 gap-4">
-        <div className={`flex items-center gap-3 p-3 rounded-lg ${hasAnyCategory ? 'bg-green-50 border border-green-200' : 'bg-muted border border-border'}`}>
-          <div className={`w-8 h-8 rounded-full flex items-center justify-center ${hasAnyCategory ? 'bg-green-500 text-white' : 'bg-muted-foreground text-white'}`}>
+      <div className="grid md:grid-cols-3 gap-6 mb-2">
+        <div className="flex items-center gap-3">
+          <div className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors ${hasAnyCategory ? 'bg-green-500 text-white shadow-md shadow-green-200' : 'bg-muted-foreground/30 text-muted-foreground'}`}>
             {hasAnyCategory ? <CheckCircle2 className="w-5 h-5" /> : <span className="text-xs font-bold">1</span>}
           </div>
-          <span className={`text-sm font-medium ${hasAnyCategory ? 'text-green-700' : 'text-muted-foreground'}`}>Categoría</span>
+          <span className={`text-sm transition-colors ${hasAnyCategory ? 'text-green-600 font-bold' : 'text-muted-foreground font-medium'}`}>Categoría</span>
         </div>
         
-        <div className={`flex items-center gap-3 p-3 rounded-lg ${currentYearData?.advisor.nombres ? 'bg-green-50 border border-green-200' : 'bg-muted border border-border'}`}>
-          <div className={`w-8 h-8 rounded-full flex items-center justify-center ${currentYearData?.advisor.nombres ? 'bg-green-500 text-white' : 'bg-muted-foreground text-white'}`}>
+        <div className="flex items-center gap-3">
+          <div className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors ${currentYearData?.advisor.nombres ? 'bg-green-500 text-white shadow-md shadow-green-200' : 'bg-muted-foreground/30 text-muted-foreground'}`}>
             {currentYearData?.advisor.nombres ? <CheckCircle2 className="w-5 h-5" /> : <span className="text-xs font-bold">2</span>}
           </div>
-          <span className={`text-sm font-medium ${currentYearData?.advisor.nombres ? 'text-green-700' : 'text-muted-foreground'}`}>Asesor</span>
+          <span className={`text-sm transition-colors ${currentYearData?.advisor.nombres ? 'text-green-600 font-bold' : 'text-muted-foreground font-medium'}`}>Asesor</span>
         </div>
         
-        <div className={`flex items-center gap-3 p-3 rounded-lg ${currentYearData?.students.length && currentYearData.students.length > 0 ? 'bg-green-50 border border-green-200' : 'bg-muted border border-border'}`}>
-          <div className={`w-8 h-8 rounded-full flex items-center justify-center ${currentYearData?.students.length && currentYearData.students.length > 0 ? 'bg-green-500 text-white' : 'bg-muted-foreground text-white'}`}>
+        <div className="flex items-center gap-3">
+          <div className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors ${currentYearData?.students.length && currentYearData.students.length > 0 ? 'bg-green-500 text-white shadow-md shadow-green-200' : 'bg-muted-foreground/30 text-muted-foreground'}`}>
             {currentYearData?.students.length && currentYearData.students.length > 0 ? <CheckCircle2 className="w-5 h-5" /> : <span className="text-xs font-bold">3</span>}
           </div>
-          <span className={`text-sm font-medium ${currentYearData?.students.length && currentYearData.students.length > 0 ? 'text-green-700' : 'text-muted-foreground'}`}>Estudiantes</span>
+          <span className={`text-sm transition-colors ${currentYearData?.students.length && currentYearData.students.length > 0 ? 'text-green-600 font-bold' : 'text-muted-foreground font-medium'}`}>Estudiantes</span>
         </div>
       </div>
 
       {/* Categories Selection */}
       <div>
         <h3 className="text-sm font-semibold text-muted-foreground uppercase mb-3">Paso 1: Selecciona una categoría</h3>
-        <div className="grid md:grid-cols-3 gap-4">
-          {CATEGORIES.map((category) => (
-            <button
-              key={category.id}
-              onClick={() => handleCategorySelect(category.id)}
-              className={`p-4 rounded-lg border-2 transition-all text-left ${
-                selectedCategory === category.id
-                  ? 'border-primary bg-primary/5'
-                  : 'border-border hover:border-primary/50'
-              }`}
-            >
-              <div className="flex items-start gap-3">
-                <div className={`w-3 h-3 rounded-full ${category.color} mt-1 flex-shrink-0`}></div>
-                <div>
-                  <h3 className="font-bold text-foreground">{category.name}</h3>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    {allCategories[category.id]
-                      ? `${Object.keys(allCategories[category.id]).length} año(s) seleccionado(s)`
-                      : 'Sin seleccionar'}
-                  </p>
+        {availableCategories.length === 0 ? (
+          <div className="p-4 bg-yellow-50 text-yellow-800 rounded-lg border border-yellow-200">
+            No se encontraron categorías disponibles para el nivel del colegio ({institutionLevel}).
+          </div>
+        ) : (
+          <div className="grid md:grid-cols-3 gap-4">
+            {availableCategories.map((category) => (
+              <button
+                key={category.id}
+                onClick={() => handleCategorySelect(category.id)}
+                className={`p-4 rounded-lg border-2 transition-all text-left ${
+                  selectedCategory === category.id
+                    ? 'border-primary bg-primary/5'
+                    : 'border-border hover:border-primary/50'
+                }`}
+              >
+                <div className="flex items-start gap-3">
+                  <div className={`w-3 h-3 rounded-full ${category.color} mt-1 flex-shrink-0`}></div>
+                  <div>
+                    <h3 className="font-bold text-foreground">{category.name}</h3>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {allCategories[category.id]
+                        ? `${Object.keys(allCategories[category.id]).length} año(s) seleccionado(s)`
+                        : 'Sin seleccionar'}
+                    </p>
+                  </div>
                 </div>
-              </div>
-            </button>
-          ))}
-        </div>
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Years Selection */}

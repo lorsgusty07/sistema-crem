@@ -35,7 +35,8 @@ export default function DelegationRegistration({
     },
     inscripcion: {
       id: null as number | null,
-      clave: ''
+      clave: '',
+      alreadyRegistered: false
     },
     categories: [] as Array<{
       level: string
@@ -57,14 +58,15 @@ export default function DelegationRegistration({
   })
 
   const handleStep1Submit = (data: any) => {
-    const { idInscripcion, clave, ...institutionData } = data;
+    const { idInscripcion, clave, alreadyRegistered, ...institutionData } = data;
     
     setFormData((prev) => ({
       ...prev,
       institution: institutionData,
       inscripcion: {
         id: idInscripcion || prev.inscripcion.id,
-        clave: clave || prev.inscripcion.clave
+        clave: clave || prev.inscripcion.clave,
+        alreadyRegistered: alreadyRegistered || false
       }
     }))
     setCurrentStep(2)
@@ -137,6 +139,8 @@ export default function DelegationRegistration({
           {currentStep === 2 && (
             <Step2Categories
               data={formData.categories}
+              institutionLevel={formData.institution.nivel}
+              alreadyRegistered={formData.inscripcion.alreadyRegistered}
               onSubmit={handleStep2Submit}
               onCancel={handleBackHome}
             />
