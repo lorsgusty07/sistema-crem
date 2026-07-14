@@ -17,6 +17,7 @@ class ColegiosSeeder extends Seeder
         
         $encabezados = []; // Aquí guardaremos los nombres de las columnas
         $primeraFila = true;
+        $procesados = []; // Para evitar duplicados de código local y nombre
         
         while (($datos = fgetcsv($csvFile)) !== FALSE) {
             
@@ -30,6 +31,12 @@ class ColegiosSeeder extends Seeder
             }
 
             $fila = array_combine($encabezados, $datos);
+
+            $clave = $fila['CODLOCAL'] . '-' . $fila['CEN_EDU'];
+            if (isset($procesados[$clave])) {
+                continue;
+            }
+            $procesados[$clave] = true;
 
             DB::table('colegios')->insert([
                 'codLocal'     => $fila['CODLOCAL'],
