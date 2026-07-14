@@ -11,3 +11,4 @@ Route::get('/user', function (Request $request) {
 
 Route::get('/colegios/search', [ColegioController::class, 'search']);
 Route::put('/colegios/{codigo}', [ColegioController::class, 'update']);
+Route::post('/inscripciones', [App\Http\Controllers\Api\InscripcionController::class, 'store']);

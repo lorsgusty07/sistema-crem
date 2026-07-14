@@ -11,6 +11,7 @@ class Colegio extends Model
     protected $fillable = [
         'codLocal',
         'nombre',
+        'nivel',
         'tipGestion',
         'nomDirector',
         'telefono',

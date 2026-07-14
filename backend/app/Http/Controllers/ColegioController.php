@@ -36,6 +36,12 @@ class ColegioController extends Controller
                 $data['telDirector'] = $data['celularDirector'];
                 unset($data['celularDirector']);
             }
+
+            // Evitar sobrescribir los códigos originales de nivel (ej. "A2,B0")
+            // con los textos traducidos del frontend (ej. "Inicial, Primaria")
+            if (isset($data['nivel'])) {
+                unset($data['nivel']);
+            }
             
             $colegio->update($data);
             return response()->json(['message' => 'Colegio actualizado con éxito', 'data' => $colegio]);

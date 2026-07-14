@@ -22,6 +22,7 @@ export default function DelegationRegistration({
     institution: {
       codigo: '',
       nombre: '',
+      nivel: '',
       telefono: '',
       correo: '',
       director: '',
@@ -31,6 +32,10 @@ export default function DelegationRegistration({
       provincia: '',
       distrito: '',
       gestion: 'Pública' as const,
+    },
+    inscripcion: {
+      id: null as number | null,
+      clave: ''
     },
     categories: [] as Array<{
       level: string
@@ -51,10 +56,16 @@ export default function DelegationRegistration({
     }>,
   })
 
-  const handleStep1Submit = (data: typeof formData.institution) => {
+  const handleStep1Submit = (data: any) => {
+    const { idInscripcion, clave, ...institutionData } = data;
+    
     setFormData((prev) => ({
       ...prev,
-      institution: data,
+      institution: institutionData,
+      inscripcion: {
+        id: idInscripcion || prev.inscripcion.id,
+        clave: clave || prev.inscripcion.clave
+      }
     }))
     setCurrentStep(2)
   }

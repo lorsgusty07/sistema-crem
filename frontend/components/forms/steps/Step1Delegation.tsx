@@ -8,6 +8,7 @@ interface Step1DelegationProps {
   data: {
     codigo: string
     nombre: string
+    nivel?: string
     telefono: string
     correo: string
     director: string
@@ -53,11 +54,25 @@ export default function Step1Delegation({
     }
   }
 
+  const formatNivel = (rawNivel: string) => {
+    if (!rawNivel) return ''
+    const codes = rawNivel.split(',').map(c => c.trim())
+    const mapped = codes.map(code => {
+      if (['A2', 'A3', 'A5'].includes(code)) return 'Inicial'
+      if (code === 'B0') return 'Primaria'
+      if (code === 'F0') return 'Secundaria'
+      return code
+    })
+    // Remover duplicados por si hay varios tipos de inicial
+    return Array.from(new Set(mapped)).join(', ')
+  }
+
   const handleSelectColegio = (colegio: any) => {
     setFormData({
       ...formData,
       codigo: colegio.codLocal || '',
       nombre: colegio.nombre || '',
+      nivel: formatNivel(colegio.nivel || ''),
       telefono: colegio.telefono || '',
       correo: colegio.correo || '',
       director: colegio.nomDirector || '',
@@ -73,6 +88,40 @@ export default function Step1Delegation({
 
   const hasChanges = () => {
     return JSON.stringify(data) !== JSON.stringify(formData)
+  }
+
+  const handleNextStep = async () => {
+    try {
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api'
+      const currentYear = new Date().getFullYear().toString()
+
+      const res = await fetch(`${apiUrl}/inscripciones`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        body: JSON.stringify({
+          idColegio: formData.codigo,
+          modalidad: 'Delegacion',
+          edicion: currentYear
+        })
+      })
+
+      if (res.ok) {
+        const data = await res.json()
+        onSubmit({
+          ...formData,
+          idInscripcion: data.idInscripcion,
+          clave: data.clave
+        })
+      } else {
+        alert('Error al crear la inscripción')
+      }
+    } catch (error) {
+      console.error('Error creando la inscripción:', error)
+      alert('Error de conexión al crear la inscripción')
+    }
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -92,7 +141,7 @@ export default function Step1Delegation({
       if (hasChanges()) {
         setIsModalOpen(true)
       } else {
-        onSubmit(formData)
+        await handleNextStep()
       }
     } else {
       alert('Por favor completa todos los campos requeridos')
@@ -114,7 +163,7 @@ export default function Step1Delegation({
     } catch (error) {
       console.error('Error actualizando la información:', error)
     }
-    onSubmit(formData)
+    await handleNextStep()
   }
 
   return (
@@ -163,9 +212,16 @@ export default function Step1Delegation({
                   <li
                     key={colegio.id || colegio.codLocal}
                     onClick={() => handleSelectColegio(colegio)}
-                    className="px-4 py-2 hover:bg-muted cursor-pointer text-sm border-b border-border last:border-0"
+                    className="px-4 py-3 hover:bg-muted cursor-pointer border-b border-border last:border-0 flex flex-col"
                   >
-                    <span className="font-bold">{colegio.codLocal}</span> - {colegio.nombre}
+                    <div className="text-sm text-foreground">
+                      <span className="font-bold text-primary">{colegio.codLocal}</span> - {colegio.nombre}
+                    </div>
+                    {colegio.nivel && (
+                      <span className="text-xs text-muted-foreground mt-0.5 font-medium">
+                        Niveles: {formatNivel(colegio.nivel)}
+                      </span>
+                    )}
                   </li>
                 ))}
               </ul>
@@ -179,7 +235,9 @@ export default function Step1Delegation({
               Nombre del Colegio *
             </label>
             <div className="w-full px-4 py-3 border border-border rounded-lg bg-muted/30 text-muted-foreground min-h-[46px] flex items-center">
-              {formData.nombre || 'Esperando código local...'}
+              <span className={formData.nombre ? 'text-foreground font-medium' : ''}>
+                {formData.nombre || 'Esperando código local...'}
+              </span>
             </div>
           </div>
 
@@ -232,9 +290,19 @@ export default function Step1Delegation({
         </div>
 
         <div className="border-t border-border pt-8 mb-8">
-          <h3 className="text-lg font-bold text-foreground mb-6">
-            Información del Director
-          </h3>
+          <div className="mb-6 flex flex-col gap-3">
+            <h3 className="text-lg font-bold text-foreground">
+              Información del Director
+            </h3>
+            <div className="px-4 py-3 bg-blue-50 border-l-4 border-blue-500 rounded-r-lg text-sm text-blue-800 flex items-center gap-3 shadow-sm w-fit">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <p>
+                <strong>Nota:</strong> Estos datos son de registros del <strong>2025</strong>. Actualícelos si es necesario.
+              </p>
+            </div>
+          </div>
           <div className="grid md:grid-cols-2 gap-6">
             <div>
               <label className="block text-sm font-medium text-foreground mb-2">
