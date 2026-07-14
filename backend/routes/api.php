@@ -10,3 +10,4 @@ Route::get('/user', function (Request $request) {
 })->middleware('auth:sanctum');
 
 Route::get('/colegios/search', [ColegioController::class, 'search']);
+Route::put('/colegios/{codigo}', [ColegioController::class, 'update']);
