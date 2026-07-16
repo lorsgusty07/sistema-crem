@@ -141,6 +141,7 @@ export default function DelegationRegistration({
               data={formData.categories}
               institutionLevel={formData.institution.nivel}
               alreadyRegistered={formData.inscripcion.alreadyRegistered}
+              inscripcionId={formData.inscripcion.id}
               onSubmit={handleStep2Submit}
               onCancel={handleBackHome}
             />

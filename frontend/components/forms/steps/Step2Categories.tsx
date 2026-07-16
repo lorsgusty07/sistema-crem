@@ -2,17 +2,22 @@
 
 import { useState, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
-import { Plus, Trash2, AlertCircle, CheckCircle2, Info } from 'lucide-react'
+import { Plus, Trash2, AlertCircle, CheckCircle2, Info, Save, Edit2 } from 'lucide-react'
 
 interface StudentData {
   id: string
+  dbId?: number
   nombres: string
   apellidos: string
   documentType: 'DNI' | 'Carné de Extranjería'
   documento: string
+  fechaNacimiento: string
+  isEditing?: boolean
+  isSaved?: boolean
 }
 
 interface AdvisorData {
+  dbId?: number
   nombres: string
   apellidos: string
   telefono: string
@@ -36,21 +41,22 @@ interface Step2CategoriesProps {
   data?: Array<any>
   institutionLevel?: string
   alreadyRegistered?: boolean
+  inscripcionId?: number | null
   onSubmit: (data: any) => void
   onCancel: () => void
 }
 
 const ALL_CATEGORIES = [
-  { id: 'inicial', name: 'Inicial', years: ['3 años', '4 años', '5 años'], color: 'bg-blue-500' },
+  { id: 'inicial', name: 'Inicial', years: ['5 años'], color: 'bg-blue-500' },
   { id: 'primaria', name: 'Primaria', years: ['1°', '2°', '3°', '4°', '5°', '6°'], color: 'bg-green-500' },
   { id: 'secundaria', name: 'Secundaria', years: ['1°', '2°', '3°', '4°', '5°'], color: 'bg-purple-500' },
 ]
 
-const DEFAULT_ADVISOR = {
+const DEFAULT_ADVISOR: AdvisorData = {
   nombres: '',
   apellidos: '',
   telefono: '',
-  documentType: 'DNI' as const,
+  documentType: 'DNI',
   documento: '',
   correo: '',
 }
@@ -59,6 +65,7 @@ export default function Step2Categories({
   data,
   institutionLevel,
   alreadyRegistered,
+  inscripcionId,
   onSubmit,
   onCancel,
 }: Step2CategoriesProps) {
@@ -66,12 +73,15 @@ export default function Step2Categories({
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null)
   const [selectedYear, setSelectedYear] = useState<string | null>(null)
   const [showRegisteredAlert, setShowRegisteredAlert] = useState(alreadyRegistered || false)
+  
+  const [advisorForm, setAdvisorForm] = useState<AdvisorData>(DEFAULT_ADVISOR)
+  const [isAdvisorSaved, setIsAdvisorSaved] = useState(false)
 
   useEffect(() => {
     if (showRegisteredAlert) {
       const timer = setTimeout(() => {
         setShowRegisteredAlert(false)
-      }, 5000) // Desaparece en 5 segundos
+      }, 5000)
       return () => clearTimeout(timer)
     }
   }, [showRegisteredAlert])
@@ -79,20 +89,29 @@ export default function Step2Categories({
   const availableCategories = ALL_CATEGORIES.filter(cat => 
     !institutionLevel || institutionLevel.toLowerCase().includes(cat.name.toLowerCase())
   )
-  
-  // Advisor form fields
-  const [advisorForm, setAdvisorForm] = useState<AdvisorData>(DEFAULT_ADVISOR)
-  
-  // Student form fields
-  const [studentForm, setStudentForm] = useState({
-    nombres: '',
-    apellidos: '',
-    documentType: 'DNI' as const,
-    documento: '',
-  })
 
   const getCurrentCategory = () => {
     return availableCategories.find(c => c.id === selectedCategory)
+  }
+
+  const getAnioId = (category: string, year: string) => {
+    if (category === 'inicial' && year === '5 años') return 1
+    if (category === 'primaria') {
+      if (year === '1°') return 2
+      if (year === '2°') return 3
+      if (year === '3°') return 4
+      if (year === '4°') return 5
+      if (year === '5°') return 6
+      if (year === '6°') return 7
+    }
+    if (category === 'secundaria') {
+      if (year === '1°') return 8
+      if (year === '2°') return 9
+      if (year === '3°') return 10
+      if (year === '4°') return 11
+      if (year === '5°') return 12
+    }
+    return 0
   }
 
   const handleCategorySelect = (categoryId: string) => {
@@ -100,33 +119,92 @@ export default function Step2Categories({
     setSelectedYear(null)
     
     if (!allCategories[categoryId]) {
-      setAllCategories({
-        ...allCategories,
+      setAllCategories(prev => ({
+        ...prev,
         [categoryId]: {}
-      })
+      }))
     }
   }
 
-  const handleYearSelect = (year: string) => {
+  const loadYearDetails = async (category: string, year: string) => {
+    if (!inscripcionId) return null;
+    
+    const anio_id = getAnioId(category, year);
+    if (!anio_id) return null;
+
+    try {
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api'
+      const res = await fetch(`${apiUrl}/inscripciones/detalle?inscripcion_cabecera_id=${inscripcionId}&anio_id=${anio_id}`)
+      if (res.ok) {
+        const data = await res.json()
+        if (data.exists) {
+          return data;
+        }
+      }
+    } catch (error) {
+      console.error('Error cargando detalles del año:', error)
+    }
+    return null;
+  }
+
+  const handleYearSelect = async (year: string) => {
     if (!selectedCategory) return
     
     setSelectedYear(year)
 
     if (!allCategories[selectedCategory][year]) {
-      setAllCategories({
-        ...allCategories,
+      // Intenta cargar datos existentes de la BD
+      const dbData = await loadYearDetails(selectedCategory, year)
+
+      let newAdvisor = DEFAULT_ADVISOR
+      let newStudents: StudentData[] = []
+      let advisorSavedState = false
+
+      if (dbData) {
+        if (dbData.asesor) {
+          newAdvisor = {
+            dbId: dbData.asesor.id,
+            nombres: dbData.asesor.nombres,
+            apellidos: dbData.asesor.apellidos,
+            telefono: dbData.asesor.telefono,
+            documentType: 'DNI', // Valor por defecto ya que no se guarda en BD
+            documento: dbData.asesor.documento,
+            correo: dbData.asesor.correo,
+          }
+          advisorSavedState = true
+        }
+
+        if (dbData.estudiantes && Array.isArray(dbData.estudiantes)) {
+          newStudents = dbData.estudiantes.map((est: any) => ({
+            id: est.id.toString(),
+            dbId: est.id,
+            nombres: est.nombres,
+            apellidos: est.apellidos,
+            documentType: 'DNI',
+            documento: est.documento,
+            fechaNacimiento: est.fechaNacimiento,
+            isEditing: false,
+            isSaved: true
+          }))
+        }
+      }
+
+      setAllCategories(prev => ({
+        ...prev,
         [selectedCategory]: {
-          ...allCategories[selectedCategory],
+          ...prev[selectedCategory],
           [year]: {
-            advisor: DEFAULT_ADVISOR,
-            students: []
+            advisor: newAdvisor,
+            students: newStudents
           }
         }
-      })
-      setAdvisorForm(DEFAULT_ADVISOR)
-      setStudentForm({ nombres: '', apellidos: '', documentType: 'DNI', documento: '' })
+      }))
+      setAdvisorForm(newAdvisor)
+      setIsAdvisorSaved(advisorSavedState)
     } else {
       setAdvisorForm(allCategories[selectedCategory][year].advisor)
+      // Comprobar si ya tiene dbId para marcarlo como guardado
+      setIsAdvisorSaved(!!allCategories[selectedCategory][year].advisor.dbId)
     }
   }
 
@@ -135,66 +213,276 @@ export default function Step2Categories({
     
     const newAdvisor = { ...advisorForm, [field]: value }
     setAdvisorForm(newAdvisor)
+    setIsAdvisorSaved(false)
 
-    setAllCategories({
-      ...allCategories,
+    setAllCategories(prev => ({
+      ...prev,
       [selectedCategory]: {
-        ...allCategories[selectedCategory],
+        ...prev[selectedCategory],
         [selectedYear]: {
-          ...allCategories[selectedCategory][selectedYear],
+          ...prev[selectedCategory][selectedYear],
           advisor: newAdvisor
         }
       }
-    })
+    }))
   }
 
-  const addStudent = () => {
-    if (!selectedCategory || !selectedYear) return
+  const handleDocumentBlur = async (e: React.FocusEvent<HTMLInputElement>) => {
+    const docValue = e.target.value.trim()
+    if (!docValue) return
 
-    if (!studentForm.nombres.trim() || !studentForm.apellidos.trim() || !studentForm.documento.trim()) {
-      alert('Por favor completa todos los campos del estudiante')
+    try {
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api'
+      const res = await fetch(`${apiUrl}/asesores/search?documento=${docValue}`)
+      if (res.ok) {
+        const data = await res.json()
+        if (data.exists && data.asesor) {
+          const updatedAdvisor = {
+            ...advisorForm,
+            nombres: data.asesor.nombres || '',
+            apellidos: data.asesor.apellidos || '',
+            telefono: data.asesor.telefono || '',
+            correo: data.asesor.correo || '',
+          }
+          setAdvisorForm(updatedAdvisor)
+          setIsAdvisorSaved(true)
+
+          if (selectedCategory && selectedYear) {
+            setAllCategories(prev => ({
+              ...prev,
+              [selectedCategory]: {
+                ...prev[selectedCategory],
+                [selectedYear]: {
+                  ...prev[selectedCategory][selectedYear],
+                  advisor: updatedAdvisor
+                }
+              }
+            }))
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Error buscando asesor:', error)
+    }
+  }
+
+  const handleSaveAdvisor = async () => {
+    if (!advisorForm.documento.trim() || !advisorForm.nombres.trim() || !advisorForm.apellidos.trim()) {
+      alert('Por favor complete al menos el documento, nombres y apellidos del asesor.')
       return
     }
 
-    const categoryData = allCategories[selectedCategory]
-    const yearData = categoryData[selectedYear]
+    try {
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api'
+      const res = await fetch(`${apiUrl}/asesores`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        body: JSON.stringify({
+          documento: advisorForm.documento,
+          nombres: advisorForm.nombres,
+          apellidos: advisorForm.apellidos,
+          telefono: advisorForm.telefono,
+          correo: advisorForm.correo,
+        })
+      })
 
-    setAllCategories({
-      ...allCategories,
-      [selectedCategory]: {
-        ...categoryData,
-        [selectedYear]: {
-          ...yearData,
-          students: [
-            ...yearData.students,
-            {
-              id: Date.now().toString(),
-              ...studentForm
+      if (res.ok) {
+        const data = await res.json()
+        const updatedAdvisor = { ...advisorForm, dbId: data.asesor.id }
+        setAdvisorForm(updatedAdvisor)
+        setIsAdvisorSaved(true)
+
+        if (selectedCategory && selectedYear) {
+          setAllCategories(prev => ({
+            ...prev,
+            [selectedCategory]: {
+              ...prev[selectedCategory],
+              [selectedYear]: {
+                ...prev[selectedCategory][selectedYear],
+                advisor: updatedAdvisor
+              }
             }
-          ]
+          }))
         }
-      }
-    })
 
-    setStudentForm({ nombres: '', apellidos: '', documentType: 'DNI', documento: '' })
+        alert('Asesor guardado/actualizado exitosamente.')
+      } else {
+        alert('Hubo un error al guardar el asesor.')
+      }
+    } catch (error) {
+      console.error('Error guardando asesor:', error)
+      alert('Error de conexión al guardar el asesor.')
+    }
   }
 
-  const removeStudent = (studentId: string) => {
+  // Estudiantes Logic
+  const addNewStudentCard = () => {
     if (!selectedCategory || !selectedYear) return
 
-    const categoryData = allCategories[selectedCategory]
-    const yearData = categoryData[selectedYear]
+    const newStudent: StudentData = {
+      id: Date.now().toString(),
+      nombres: '',
+      apellidos: '',
+      documentType: 'DNI',
+      documento: '',
+      fechaNacimiento: '',
+      isEditing: true,
+      isSaved: false
+    }
 
-    setAllCategories({
-      ...allCategories,
+    setAllCategories(prev => ({
+      ...prev,
       [selectedCategory]: {
-        ...categoryData,
+        ...prev[selectedCategory],
         [selectedYear]: {
-          ...yearData,
-          students: yearData.students.filter(s => s.id !== studentId)
+          ...prev[selectedCategory][selectedYear],
+          students: [...prev[selectedCategory][selectedYear].students, newStudent]
         }
       }
-    })
+    }))
+  }
+
+  const updateStudentField = (studentId: string, field: keyof StudentData, value: any) => {
+    if (!selectedCategory || !selectedYear) return
+
+    setAllCategories(prev => ({
+      ...prev,
+      [selectedCategory]: {
+        ...prev[selectedCategory],
+        [selectedYear]: {
+          ...prev[selectedCategory][selectedYear],
+          students: prev[selectedCategory][selectedYear].students.map(s => 
+            s.id === studentId ? { ...s, [field]: value } : s
+          )
+        }
+      }
+    }))
+  }
+
+  const handleStudentDocumentBlur = async (studentId: string, docValue: string) => {
+    if (!docValue.trim()) return
+
+    try {
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api'
+      const res = await fetch(`${apiUrl}/estudiantes/search?documento=${docValue}`)
+      if (res.ok) {
+        const data = await res.json()
+        if (data.exists && data.estudiante) {
+          if (!selectedCategory || !selectedYear) return
+          
+          setAllCategories(prev => ({
+            ...prev,
+            [selectedCategory]: {
+              ...prev[selectedCategory],
+              [selectedYear]: {
+                ...prev[selectedCategory][selectedYear],
+                students: prev[selectedCategory][selectedYear].students.map(s => 
+                  s.id === studentId ? { 
+                    ...s, 
+                    nombres: data.estudiante.nombres || '',
+                    apellidos: data.estudiante.apellidos || '',
+                    fechaNacimiento: data.estudiante.fechaNacimiento || ''
+                  } : s
+                )
+              }
+            }
+          }))
+        }
+      }
+    } catch (error) {
+      console.error('Error buscando estudiante:', error)
+    }
+  }
+
+  const saveStudent = async (student: StudentData) => {
+    if (!student.nombres.trim() || !student.apellidos.trim() || !student.documento.trim() || !student.fechaNacimiento.trim()) {
+      alert('Por favor completa todos los campos obligatorios del estudiante.')
+      return
+    }
+
+    try {
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api'
+      const res = await fetch(`${apiUrl}/estudiantes`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          documento: student.documento,
+          nombres: student.nombres,
+          apellidos: student.apellidos,
+          fechaNacimiento: student.fechaNacimiento
+        })
+      })
+
+      if (res.ok) {
+        const data = await res.json()
+        
+        if (selectedCategory && selectedYear) {
+          setAllCategories(prev => ({
+            ...prev,
+            [selectedCategory]: {
+              ...prev[selectedCategory],
+              [selectedYear]: {
+                ...prev[selectedCategory][selectedYear],
+                students: prev[selectedCategory][selectedYear].students.map(s => 
+                  s.id === student.id ? { ...s, isEditing: false, isSaved: true, dbId: data.estudiante.id } : s
+                )
+              }
+            }
+          }))
+        }
+        alert('Estudiante guardado exitosamente.')
+      } else {
+        alert('Error al guardar estudiante.')
+      }
+    } catch (error) {
+      console.error(error)
+      alert('Error de conexión.')
+    }
+  }
+
+  const editStudent = (studentId: string) => {
+    if (!selectedCategory || !selectedYear) return
+    setAllCategories(prev => ({
+      ...prev,
+      [selectedCategory]: {
+        ...prev[selectedCategory],
+        [selectedYear]: {
+          ...prev[selectedCategory][selectedYear],
+          students: prev[selectedCategory][selectedYear].students.map(s => 
+            s.id === studentId ? { ...s, isEditing: true } : s
+          )
+        }
+      }
+    }))
+  }
+
+  const deleteStudent = async (student: StudentData) => {
+    if (!selectedCategory || !selectedYear) return
+    
+    if (student.dbId || student.isSaved) {
+      try {
+        const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api'
+        if (student.dbId) {
+          await fetch(`${apiUrl}/estudiantes/${student.dbId}`, { method: 'DELETE' })
+        }
+      } catch (error) {
+        console.error("No se pudo eliminar de BD", error)
+      }
+    }
+
+    setAllCategories(prev => ({
+      ...prev,
+      [selectedCategory]: {
+        ...prev[selectedCategory],
+        [selectedYear]: {
+          ...prev[selectedCategory][selectedYear],
+          students: prev[selectedCategory][selectedYear].students.filter(s => s.id !== student.id)
+        }
+      }
+    }))
   }
 
   const deleteCategory = () => {
@@ -210,16 +498,72 @@ export default function Step2Categories({
       setSelectedCategory(null)
       setSelectedYear(null)
     } else {
-      setAllCategories({
-        ...allCategories,
+      setAllCategories(prev => ({
+        ...prev,
         [selectedCategory]: categoryData
-      })
+      }))
       setSelectedYear(null)
     }
   }
 
+  const handleSaveDetalle = async () => {
+    if (!selectedCategory || !selectedYear || !inscripcionId) {
+      alert("No hay una inscripción activa vinculada para guardar los detalles.")
+      return;
+    }
+
+    const currentData = allCategories[selectedCategory]?.[selectedYear]
+    if (!currentData) return;
+
+    if (!currentData.advisor.dbId) {
+      alert("Debes guardar la información del Asesor primero.");
+      return;
+    }
+
+    const savedStudents = currentData.students.filter(s => s.dbId && s.isSaved);
+    if (savedStudents.length === 0) {
+      alert("Debes tener al menos un estudiante guardado para guardar esta categoría.");
+      return;
+    }
+
+    if (currentData.students.some(s => s.isEditing)) {
+      alert("Tienes estudiantes en modo edición sin guardar. Guárdalos o elimínalos primero.");
+      return;
+    }
+
+    const anio_id = getAnioId(selectedCategory, selectedYear);
+    if (!anio_id) {
+      alert("Año no válido.");
+      return;
+    }
+
+    try {
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api'
+      const res = await fetch(`${apiUrl}/inscripciones/detalle`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          inscripcion_cabecera_id: inscripcionId,
+          anio_id: anio_id,
+          asesor_id: currentData.advisor.dbId,
+          estudiantes_ids: savedStudents.map(s => s.dbId)
+        })
+      });
+
+      if (res.ok) {
+        alert("Los detalles de la categoría/año se guardaron exitosamente en la base de datos.");
+      } else {
+        alert("Ocurrió un error al guardar los detalles de inscripción.");
+      }
+    } catch (error) {
+      console.error("Error al guardar inscripcion detalle:", error);
+      alert("Error de conexión.");
+    }
+  }
+
   const handleNext = () => {
-    // Transform data to match expected format
     const formattedCategories = []
     
     for (const [categoryId, years] of Object.entries(allCategories)) {
@@ -227,10 +571,17 @@ export default function Step2Categories({
         const categoryObj = ALL_CATEGORIES.find(c => c.id === categoryId)
         const categoryName = categoryObj ? categoryObj.name : categoryId
 
-        if (!data.advisor.nombres?.trim() || !data.advisor.apellidos?.trim() || !data.advisor.documento?.trim()) {
-          alert(`Por favor completa la información del asesor para ${categoryName} - ${year}`)
+        if (!data.advisor.dbId) {
+          alert(`Por favor guarda al asesor de ${categoryName} - ${year}`)
           return
         }
+        
+        const unsavedStudents = data.students.filter(s => s.isEditing)
+        if (unsavedStudents.length > 0) {
+          alert(`Tienes estudiantes sin guardar en ${categoryName} - ${year}`)
+          return
+        }
+
         if (data.students.length === 0) {
           alert(`Por favor agrega al menos un estudiante para ${categoryName} - ${year}`)
           return
@@ -273,30 +624,6 @@ export default function Step2Categories({
         <p className="text-muted-foreground">
           Elige las categorías y años en los que deseas participar, luego completa la información del asesor y estudiantes
         </p>
-      </div>
-
-      {/* Progress Indicators */}
-      <div className="grid md:grid-cols-3 gap-6 mb-2">
-        <div className="flex items-center gap-3">
-          <div className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors ${hasAnyCategory ? 'bg-green-500 text-white shadow-md shadow-green-200' : 'bg-muted-foreground/30 text-muted-foreground'}`}>
-            {hasAnyCategory ? <CheckCircle2 className="w-5 h-5" /> : <span className="text-xs font-bold">1</span>}
-          </div>
-          <span className={`text-sm transition-colors ${hasAnyCategory ? 'text-green-600 font-bold' : 'text-muted-foreground font-medium'}`}>Categoría</span>
-        </div>
-        
-        <div className="flex items-center gap-3">
-          <div className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors ${currentYearData?.advisor.nombres ? 'bg-green-500 text-white shadow-md shadow-green-200' : 'bg-muted-foreground/30 text-muted-foreground'}`}>
-            {currentYearData?.advisor.nombres ? <CheckCircle2 className="w-5 h-5" /> : <span className="text-xs font-bold">2</span>}
-          </div>
-          <span className={`text-sm transition-colors ${currentYearData?.advisor.nombres ? 'text-green-600 font-bold' : 'text-muted-foreground font-medium'}`}>Asesor</span>
-        </div>
-        
-        <div className="flex items-center gap-3">
-          <div className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors ${currentYearData?.students.length && currentYearData.students.length > 0 ? 'bg-green-500 text-white shadow-md shadow-green-200' : 'bg-muted-foreground/30 text-muted-foreground'}`}>
-            {currentYearData?.students.length && currentYearData.students.length > 0 ? <CheckCircle2 className="w-5 h-5" /> : <span className="text-xs font-bold">3</span>}
-          </div>
-          <span className={`text-sm transition-colors ${currentYearData?.students.length && currentYearData.students.length > 0 ? 'text-green-600 font-bold' : 'text-muted-foreground font-medium'}`}>Estudiantes</span>
-        </div>
       </div>
 
       {/* Categories Selection */}
@@ -366,24 +693,77 @@ export default function Step2Categories({
             <h3 className="font-bold text-foreground text-lg">
               {currentCategory?.name} - {selectedYear}
             </h3>
-            <Button
-              onClick={deleteCategory}
-              variant="outline"
-              className="text-destructive hover:text-destructive hover:bg-destructive/5"
-            >
-              <Trash2 className="w-4 h-4 mr-2" />
-              Eliminar
-            </Button>
+            <div className="flex gap-2">
+              <Button
+                onClick={handleSaveDetalle}
+                className="bg-green-600 hover:bg-green-700 text-white"
+              >
+                <Save className="w-4 h-4 mr-2" />
+                Guardar Año
+              </Button>
+              <Button
+                onClick={deleteCategory}
+                variant="outline"
+                className="text-destructive hover:text-destructive hover:bg-destructive/5"
+              >
+                <Trash2 className="w-4 h-4 mr-2" />
+                Eliminar
+              </Button>
+            </div>
           </div>
 
           {/* Advisor Section */}
           <div className="space-y-4">
-            <div className="flex items-center gap-2">
-              <span className="text-sm font-bold bg-primary text-white px-2 py-1 rounded">Paso 2</span>
-              <h4 className="font-semibold text-foreground">Información del Asesor/Docente</h4>
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-bold bg-primary text-white px-2 py-1 rounded">Paso 2</span>
+                <h4 className="font-semibold text-foreground">Información del Asesor/Docente</h4>
+              </div>
+              <div className="flex items-center gap-3">
+                {!isAdvisorSaved && (
+                  <span className="text-xs font-semibold text-yellow-600 bg-yellow-100 px-2 py-1 rounded flex items-center gap-1">
+                    <AlertCircle className="w-3 h-3" />
+                    Cambios sin guardar
+                  </span>
+                )}
+                <Button onClick={handleSaveAdvisor} size="sm" className="bg-green-600 hover:bg-green-700 text-white flex items-center gap-2">
+                  <Save className="w-4 h-4" />
+                  Guardar Asesor
+                </Button>
+              </div>
+            </div>
+
+            <div className="px-5 py-4 bg-red-50 border-l-4 border-red-500 rounded-r-lg text-sm text-red-800 flex items-start gap-3 shadow-sm w-fit">
+              <AlertCircle className="w-6 h-6 flex-shrink-0 text-red-600 mt-0.5" />
+              <div>
+                <p className="font-bold text-red-900 uppercase mb-1 text-base">⚠️ MUY IMPORTANTE</p>
+                <p>Por favor <strong>verifique obligatoriamente</strong> que los datos del Asesor sean correctos. Serán utilizados para la comunicación oficial y contraseñas de acceso de esta categoría.</p>
+              </div>
             </div>
             
             <div className="grid md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Tipo de Documento</label>
+                <select
+                  value={advisorForm.documentType}
+                  onChange={(e) => updateAdvisor('documentType', e.target.value as 'DNI' | 'Carné de Extranjería')}
+                  className="w-full px-4 py-2 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary text-sm"
+                >
+                  <option>DNI</option>
+                  <option>Carné de Extranjería</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Número de Documento</label>
+                <input
+                  type="text"
+                  value={advisorForm.documento}
+                  onChange={(e) => updateAdvisor('documento', e.target.value)}
+                  onBlur={handleDocumentBlur}
+                  placeholder="Ej. 12345678"
+                  className="w-full px-4 py-2 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary text-sm"
+                />
+              </div>
               <div>
                 <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Nombres</label>
                 <input
@@ -424,126 +804,129 @@ export default function Step2Categories({
                   className="w-full px-4 py-2 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary text-sm"
                 />
               </div>
-              <div>
-                <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Tipo de Documento</label>
-                <select
-                  value={advisorForm.documentType}
-                  onChange={(e) => updateAdvisor('documentType', e.target.value as 'DNI' | 'Carné de Extranjería')}
-                  className="w-full px-4 py-2 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary text-sm"
-                >
-                  <option>DNI</option>
-                  <option>Carné de Extranjería</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Número de Documento</label>
-                <input
-                  type="text"
-                  value={advisorForm.documento}
-                  onChange={(e) => updateAdvisor('documento', e.target.value)}
-                  placeholder="Ej. 12345678"
-                  className="w-full px-4 py-2 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary text-sm"
-                />
-              </div>
             </div>
           </div>
 
           {/* Students Section */}
-          <div className="space-y-4 pt-4 border-t border-primary/20">
-            <div className="flex items-center gap-2">
-              <span className="text-sm font-bold bg-primary text-white px-2 py-1 rounded">Paso 3</span>
-              <h4 className="font-semibold text-foreground">Agregar Estudiantes</h4>
-            </div>
-
-            <div className="space-y-3">
-              <div className="grid md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Nombres</label>
-                  <input
-                    type="text"
-                    value={studentForm.nombres}
-                    onChange={(e) => setStudentForm({ ...studentForm, nombres: e.target.value })}
-                    placeholder="Ej. María"
-                    className="w-full px-4 py-2 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary text-sm"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Apellidos</label>
-                  <input
-                    type="text"
-                    value={studentForm.apellidos}
-                    onChange={(e) => setStudentForm({ ...studentForm, apellidos: e.target.value })}
-                    placeholder="Ej. Rodríguez Sánchez"
-                    className="w-full px-4 py-2 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary text-sm"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Tipo de Documento</label>
-                  <select
-                    value={studentForm.documentType}
-                    onChange={(e) => setStudentForm({ ...studentForm, documentType: e.target.value as 'DNI' | 'Carné de Extranjería' })}
-                    className="w-full px-4 py-2 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary text-sm"
-                  >
-                    <option>DNI</option>
-                    <option>Carné de Extranjería</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Número de Documento</label>
-                  <input
-                    type="text"
-                    value={studentForm.documento}
-                    onChange={(e) => setStudentForm({ ...studentForm, documento: e.target.value })}
-                    placeholder="Ej. 87654321"
-                    className="w-full px-4 py-2 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary text-sm"
-                  />
-                </div>
+          <div className="space-y-4 pt-6 border-t border-primary/20">
+            <div className="flex justify-between items-center">
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-bold bg-primary text-white px-2 py-1 rounded">Paso 3</span>
+                <h4 className="font-semibold text-foreground">Estudiantes de la Categoría</h4>
               </div>
-
               <Button
-                onClick={addStudent}
-                className="w-full bg-primary hover:bg-primary/90 text-white"
+                onClick={addNewStudentCard}
+                className="bg-primary hover:bg-primary/90 text-white"
+                size="sm"
               >
-                <Plus className="w-4 h-4 mr-2" />
+                <Plus className="w-4 h-4 mr-1" />
                 Agregar Estudiante
               </Button>
             </div>
 
-            {/* Students Table */}
-            {currentYearData.students.length > 0 && (
-              <div className="bg-white border border-border rounded-lg overflow-hidden">
-                <div className="px-4 py-3 bg-muted/50 border-b border-border">
-                  <p className="text-sm font-semibold text-foreground">Estudiantes Agregados: {currentYearData.students.length}</p>
+            <div className="space-y-4">
+              {currentYearData.students.length === 0 ? (
+                <div className="p-8 text-center border-2 border-dashed border-border rounded-lg bg-white/50">
+                  <p className="text-muted-foreground text-sm">No hay estudiantes agregados. Haz clic en "Agregar Estudiante" para comenzar.</p>
                 </div>
-                <table className="w-full text-sm">
-                  <thead className="border-b border-border bg-muted/30">
-                    <tr>
-                      <th className="text-left px-4 py-2 font-semibold text-xs">Nombres</th>
-                      <th className="text-left px-4 py-2 font-semibold text-xs">Apellidos</th>
-                      <th className="text-left px-4 py-2 font-semibold text-xs">Documento</th>
-                      <th className="text-right px-4 py-2 font-semibold text-xs">Acción</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {currentYearData.students.map((student) => (
-                      <tr key={student.id} className="border-b border-border hover:bg-muted/30">
-                        <td className="px-4 py-2">{student.nombres}</td>
-                        <td className="px-4 py-2">{student.apellidos}</td>
-                        <td className="px-4 py-2 text-xs text-muted-foreground">{student.documentType}: {student.documento}</td>
-                        <td className="px-4 py-2 text-right">
-                          <button
-                            onClick={() => removeStudent(student.id)}
-                            className="text-destructive hover:text-destructive/80 transition-colors"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
+              ) : (
+                currentYearData.students.map((student, index) => (
+                  <div key={student.id} className={`p-4 rounded-lg border shadow-sm transition-all ${student.isEditing ? 'bg-white border-blue-200 shadow-blue-100' : 'bg-muted/10 border-border'}`}>
+                    {/* Mode: Editing */}
+                    {student.isEditing ? (
+                      <div className="space-y-4">
+                        <div className="flex justify-between items-center border-b border-border pb-2">
+                          <h5 className="font-bold text-sm text-foreground">Estudiante #{index + 1} <span className="text-yellow-600 font-normal ml-2 text-xs bg-yellow-50 px-2 py-0.5 rounded">Editando...</span></h5>
+                        </div>
+                        <div className="grid md:grid-cols-2 gap-4">
+                          <div>
+                            <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Tipo de Documento</label>
+                            <select
+                              value={student.documentType}
+                              onChange={(e) => updateStudentField(student.id, 'documentType', e.target.value)}
+                              className="w-full px-3 py-2 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary text-sm bg-white"
+                            >
+                              <option>DNI</option>
+                              <option>Carné de Extranjería</option>
+                            </select>
+                          </div>
+                          <div>
+                            <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Número de Documento</label>
+                            <input
+                              type="text"
+                              value={student.documento}
+                              onChange={(e) => updateStudentField(student.id, 'documento', e.target.value)}
+                              onBlur={(e) => handleStudentDocumentBlur(student.id, e.target.value)}
+                              placeholder="Ej. 87654321"
+                              className="w-full px-3 py-2 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary text-sm bg-white"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Nombres</label>
+                            <input
+                              type="text"
+                              value={student.nombres}
+                              onChange={(e) => updateStudentField(student.id, 'nombres', e.target.value)}
+                              placeholder="Ej. María"
+                              className="w-full px-3 py-2 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary text-sm bg-white"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Apellidos</label>
+                            <input
+                              type="text"
+                              value={student.apellidos}
+                              onChange={(e) => updateStudentField(student.id, 'apellidos', e.target.value)}
+                              placeholder="Ej. Rodríguez"
+                              className="w-full px-3 py-2 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary text-sm bg-white"
+                            />
+                          </div>
+                          <div className="md:col-span-2">
+                            <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Fecha de Nacimiento</label>
+                            <input
+                              type="date"
+                              value={student.fechaNacimiento}
+                              onChange={(e) => updateStudentField(student.id, 'fechaNacimiento', e.target.value)}
+                              className="w-full px-3 py-2 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary text-sm bg-white"
+                            />
+                          </div>
+                        </div>
+                        <div className="flex justify-end gap-2 pt-2">
+                          <Button variant="outline" size="sm" onClick={() => deleteStudent(student)}>
+                            Cancelar / Eliminar
+                          </Button>
+                          <Button size="sm" className="bg-green-600 hover:bg-green-700 text-white flex items-center gap-2" onClick={() => saveStudent(student)}>
+                            <Save className="w-4 h-4" />
+                            Guardar Estudiante
+                          </Button>
+                        </div>
+                      </div>
+                    ) : (
+                      /* Mode: View */
+                      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                        <div className="flex-1">
+                          <h5 className="font-bold text-foreground text-base mb-1">{student.nombres} {student.apellidos}</h5>
+                          <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted-foreground">
+                            <p><strong>{student.documentType}:</strong> {student.documento}</p>
+                            <p><strong>F. Nacimiento:</strong> {student.fechaNacimiento}</p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Button size="sm" variant="outline" className="border-blue-200 text-blue-600 hover:bg-blue-50" onClick={() => editStudent(student.id)}>
+                            <Edit2 className="w-4 h-4 mr-1" />
+                            Editar
+                          </Button>
+                          <Button size="sm" variant="outline" className="border-red-200 text-red-600 hover:bg-red-50" onClick={() => deleteStudent(student)}>
+                            <Trash2 className="w-4 h-4 mr-1" />
+                            Eliminar
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ))
+              )}
+            </div>
           </div>
         </div>
       )}
@@ -558,7 +941,7 @@ export default function Step2Categories({
           disabled={!hasAnyCategory}
           className="flex-1 bg-primary hover:bg-primary/90 text-white disabled:bg-muted disabled:text-muted-foreground"
         >
-          Continuar
+          Continuar al Resumen
         </Button>
       </div>
     </div>
