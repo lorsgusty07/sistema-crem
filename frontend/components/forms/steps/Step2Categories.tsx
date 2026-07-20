@@ -29,6 +29,7 @@ interface AdvisorData {
 interface CategoryYearData {
   advisor: AdvisorData
   students: StudentData[]
+  isYearSaved?: boolean
 }
 
 interface AllCategoriesData {
@@ -76,6 +77,7 @@ export default function Step2Categories({
   
   const [advisorForm, setAdvisorForm] = useState<AdvisorData>(DEFAULT_ADVISOR)
   const [isAdvisorSaved, setIsAdvisorSaved] = useState(false)
+  const [unsavedModal, setUnsavedModal] = useState({ show: false, message: '' })
 
   useEffect(() => {
     if (showRegisteredAlert) {
@@ -195,7 +197,8 @@ export default function Step2Categories({
           ...prev[selectedCategory],
           [year]: {
             advisor: newAdvisor,
-            students: newStudents
+            students: newStudents,
+            isYearSaved: !!dbData // true si vino de base de datos
           }
         }
       }))
@@ -221,7 +224,8 @@ export default function Step2Categories({
         ...prev[selectedCategory],
         [selectedYear]: {
           ...prev[selectedCategory][selectedYear],
-          advisor: newAdvisor
+          advisor: newAdvisor,
+          isYearSaved: false
         }
       }
     }))
@@ -254,7 +258,8 @@ export default function Step2Categories({
                 ...prev[selectedCategory],
                 [selectedYear]: {
                   ...prev[selectedCategory][selectedYear],
-                  advisor: updatedAdvisor
+                  advisor: updatedAdvisor,
+                  isYearSaved: false
                 }
               }
             }))
@@ -302,7 +307,8 @@ export default function Step2Categories({
               ...prev[selectedCategory],
               [selectedYear]: {
                 ...prev[selectedCategory][selectedYear],
-                advisor: updatedAdvisor
+                advisor: updatedAdvisor,
+                isYearSaved: false
               }
             }
           }))
@@ -339,7 +345,8 @@ export default function Step2Categories({
         ...prev[selectedCategory],
         [selectedYear]: {
           ...prev[selectedCategory][selectedYear],
-          students: [...prev[selectedCategory][selectedYear].students, newStudent]
+          students: [...prev[selectedCategory][selectedYear].students, newStudent],
+          isYearSaved: false
         }
       }
     }))
@@ -428,7 +435,8 @@ export default function Step2Categories({
                 ...prev[selectedCategory][selectedYear],
                 students: prev[selectedCategory][selectedYear].students.map(s => 
                   s.id === student.id ? { ...s, isEditing: false, isSaved: true, dbId: data.estudiante.id } : s
-                )
+                ),
+                isYearSaved: false
               }
             }
           }))
@@ -479,7 +487,8 @@ export default function Step2Categories({
         ...prev[selectedCategory],
         [selectedYear]: {
           ...prev[selectedCategory][selectedYear],
-          students: prev[selectedCategory][selectedYear].students.filter(s => s.id !== student.id)
+          students: prev[selectedCategory][selectedYear].students.filter(s => s.id !== student.id),
+          isYearSaved: false
         }
       }
     }))
@@ -553,6 +562,16 @@ export default function Step2Categories({
       });
 
       if (res.ok) {
+        setAllCategories(prev => ({
+          ...prev,
+          [selectedCategory]: {
+            ...prev[selectedCategory],
+            [selectedYear]: {
+              ...prev[selectedCategory][selectedYear],
+              isYearSaved: true
+            }
+          }
+        }));
         alert("Los detalles de la categoría/año se guardaron exitosamente en la base de datos.");
       } else {
         alert("Ocurrió un error al guardar los detalles de inscripción.");
@@ -572,18 +591,23 @@ export default function Step2Categories({
         const categoryName = categoryObj ? categoryObj.name : categoryId
 
         if (!data.advisor.dbId) {
-          alert(`Por favor guarda al asesor de ${categoryName} - ${year}`)
+          setUnsavedModal({ show: true, message: `Por favor guarda al asesor de ${categoryName} - ${year}` })
           return
         }
         
         const unsavedStudents = data.students.filter(s => s.isEditing)
         if (unsavedStudents.length > 0) {
-          alert(`Tienes estudiantes sin guardar en ${categoryName} - ${year}`)
+          setUnsavedModal({ show: true, message: `Tienes estudiantes sin guardar en ${categoryName} - ${year}` })
           return
         }
 
         if (data.students.length === 0) {
-          alert(`Por favor agrega al menos un estudiante para ${categoryName} - ${year}`)
+          setUnsavedModal({ show: true, message: `Por favor agrega al menos un estudiante para ${categoryName} - ${year}` })
+          return
+        }
+
+        if (data.isYearSaved === false) {
+          setUnsavedModal({ show: true, message: `Tienes cambios sin guardar en el año ${categoryName} - ${year}. Asegúrate de presionar el botón verde "Guardar Año".` })
           return
         }
 
@@ -596,7 +620,7 @@ export default function Step2Categories({
     }
 
     if (formattedCategories.length === 0) {
-      alert('Por favor selecciona al menos una categoría y año')
+      setUnsavedModal({ show: true, message: 'Por favor selecciona al menos una categoría y año' })
       return
     }
 
@@ -689,27 +713,10 @@ export default function Step2Categories({
       {/* Form Area */}
       {selectedCategory && selectedYear && currentYearData && (
         <div className="border border-primary rounded-lg p-6 space-y-6 bg-primary/2">
-          <div className="flex justify-between items-center pb-4 border-b border-primary/20">
+          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 pb-4 border-b border-primary/20">
             <h3 className="font-bold text-foreground text-lg">
               {currentCategory?.name} - {selectedYear}
             </h3>
-            <div className="flex gap-2">
-              <Button
-                onClick={handleSaveDetalle}
-                className="bg-green-600 hover:bg-green-700 text-white"
-              >
-                <Save className="w-4 h-4 mr-2" />
-                Guardar Año
-              </Button>
-              <Button
-                onClick={deleteCategory}
-                variant="outline"
-                className="text-destructive hover:text-destructive hover:bg-destructive/5"
-              >
-                <Trash2 className="w-4 h-4 mr-2" />
-                Eliminar
-              </Button>
-            </div>
           </div>
 
           {/* Advisor Section */}
@@ -726,7 +733,11 @@ export default function Step2Categories({
                     Cambios sin guardar
                   </span>
                 )}
-                <Button onClick={handleSaveAdvisor} size="sm" className="bg-green-600 hover:bg-green-700 text-white flex items-center gap-2">
+                <Button 
+                  onClick={handleSaveAdvisor} 
+                  size="sm" 
+                  className={`text-white flex items-center gap-2 transition-all ${!isAdvisorSaved && advisorForm.documento.length > 0 ? 'bg-yellow-500 hover:bg-yellow-600 animate-pulse ring-4 ring-yellow-500/30' : 'bg-green-600 hover:bg-green-700'}`}
+                >
                   <Save className="w-4 h-4" />
                   Guardar Asesor
                 </Button>
@@ -816,7 +827,7 @@ export default function Step2Categories({
               </div>
               <Button
                 onClick={addNewStudentCard}
-                className="bg-primary hover:bg-primary/90 text-white"
+                className={`text-white transition-all ${isAdvisorSaved && currentYearData.students.length === 0 ? 'bg-blue-600 hover:bg-blue-700 animate-bounce shadow-lg shadow-blue-500/40' : 'bg-primary hover:bg-primary/90'}`}
                 size="sm"
               >
                 <Plus className="w-4 h-4 mr-1" />
@@ -908,7 +919,7 @@ export default function Step2Categories({
                           <h5 className="font-bold text-foreground text-base mb-1">{student.nombres} {student.apellidos}</h5>
                           <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted-foreground">
                             <p><strong>{student.documentType}:</strong> {student.documento}</p>
-                            <p><strong>F. Nacimiento:</strong> {student.fechaNacimiento}</p>
+                            <p><strong>Año:</strong> {`${selectedYear} DE ${currentCategory?.name}`.toUpperCase()}</p>
                           </div>
                         </div>
                         <div className="flex items-center gap-2">
@@ -928,13 +939,47 @@ export default function Step2Categories({
               )}
             </div>
           </div>
+
+          {/* Footer Actions (Moved from header) */}
+          <div className="pt-6 border-t border-primary/20 flex flex-col md:flex-row justify-between items-center gap-4 mt-6">
+            <div className="w-full md:w-auto">
+              <h4 className="text-sm font-semibold text-foreground mb-1">Opciones del Año</h4>
+              <p className="text-xs text-muted-foreground">Guarda los cambios de todos los estudiantes y el asesor para este año, o elimina el año por completo si no deseas participar.</p>
+            </div>
+            
+            <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto bg-muted/30 p-3 rounded-lg border border-border">
+              {currentYearData.isYearSaved === false && (
+                <span className="text-xs font-semibold text-yellow-600 bg-yellow-100 px-3 py-1.5 rounded flex items-center justify-center gap-1 order-last sm:order-first w-full sm:w-auto">
+                  <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                  Cambios sin guardar
+                </span>
+              )}
+              <div className="flex gap-2 w-full sm:w-auto">
+                <Button
+                  onClick={handleSaveDetalle}
+                  className={`text-white flex-1 sm:flex-none transition-all ${isAdvisorSaved && currentYearData.students.length > 0 && currentYearData.isYearSaved === false && !currentYearData.students.some(s => s.isEditing) ? 'bg-green-500 hover:bg-green-600 animate-pulse ring-4 ring-green-500/30' : 'bg-green-600 hover:bg-green-700'}`}
+                >
+                  <Save className="w-4 h-4 mr-1 sm:mr-2" />
+                  Guardar Año
+                </Button>
+                <Button
+                  onClick={deleteCategory}
+                  variant="outline"
+                  className="text-destructive hover:text-destructive hover:bg-destructive/5 flex-1 sm:flex-none border-red-200 bg-white"
+                >
+                  <Trash2 className="w-4 h-4 mr-1 sm:mr-2" />
+                  Eliminar
+                </Button>
+              </div>
+            </div>
+          </div>
         </div>
       )}
 
       {/* Navigation */}
       <div className="flex gap-4 pt-6">
         <Button onClick={onCancel} variant="outline" className="flex-1">
-          Atrás
+          {alreadyRegistered ? 'Editar datos del colegio' : 'Atrás'}
         </Button>
         <Button
           onClick={handleNext}
@@ -944,6 +989,29 @@ export default function Step2Categories({
           Continuar al Resumen
         </Button>
       </div>
+
+      {/* Unsaved Changes Modal */}
+      {unsavedModal.show && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm px-4 animate-in fade-in duration-200">
+          <div className="bg-white rounded-xl shadow-2xl max-w-md w-full p-6 animate-in zoom-in-95 duration-200">
+            <div className="flex items-center gap-3 mb-4 text-amber-500">
+              <AlertCircle className="w-8 h-8" />
+              <h2 className="text-xl font-bold text-slate-800">Acción Requerida</h2>
+            </div>
+            <p className="text-slate-600 mb-8 leading-relaxed">
+              {unsavedModal.message}
+            </p>
+            <div className="flex justify-end">
+              <Button 
+                onClick={() => setUnsavedModal({ show: false, message: '' })}
+                className="bg-slate-800 hover:bg-slate-700 text-white px-6"
+              >
+                Entendido
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

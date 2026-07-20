@@ -143,15 +143,16 @@ export default function DelegationRegistration({
               alreadyRegistered={formData.inscripcion.alreadyRegistered}
               inscripcionId={formData.inscripcion.id}
               onSubmit={handleStep2Submit}
-              onCancel={handleBackHome}
+              onCancel={handleBack}
             />
           )}
           {currentStep === 3 && (
             <Step3Payment
               institutionName={formData.institution.nombre}
+              institutionGestion={formData.institution.gestion}
               selectedCategories={formData.categories}
               onSubmit={handleStep3Submit}
-              onCancel={handleBackHome}
+              onCancel={handleBack}
             />
           )}
         </div>
